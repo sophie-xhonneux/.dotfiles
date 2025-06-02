@@ -8,7 +8,10 @@ return {
         "hrsh7th/cmp-buffer",
         "hrsh7th/cmp-path",
         "hrsh7th/cmp-cmdline",
+        "micangl/cmp-vimtex",
+        "hrsh7th/cmp-omni",
         "hrsh7th/nvim-cmp",
+        "barreiroleo/ltex-extra.nvim"
     },
     config = function()
         local cmp = require('cmp')
@@ -24,9 +27,30 @@ return {
             }),
             sources = cmp.config.sources({
                 { name = 'nvim_lsp' },
-            }, {
                 { name = 'buffer' },
             })
+        })
+
+        cmp.setup.filetype("tex", {
+            formatting = {
+              -- nvim-cmp overrides the standard completion-menu formatting. We use
+              -- a custom format function to preserve the format as provided by
+              -- VimTeX's omni completion function:
+              format = function(entry, vim_item)
+                  vim_item.menu = ({
+                    -- Use this line if you wish to add a specific kind for cmp-vimtex:
+                    vimtex = "[Vimtex]" .. (vim_item.menu ~= nil and vim_item.menu or ""),
+                    buffer = "[Buffer]",
+                    nvim_lsp = "[LSP]",
+                  })[entry.source.name]
+
+                  return vim_item
+                end
+            },
+            sources = {
+                { name = 'vimtex', keyword_length=0, group_index=0 },
+                { name = 'buffer', group_index=1 },
+            }
         })
 
         vim.diagnostic.config({
@@ -45,7 +69,7 @@ return {
             PATH = "append"
         })
         require('mason-lspconfig').setup({
-            ensure_installed = { 'lua_ls', 'ruff', 'pylsp'},
+            ensure_installed = { 'lua_ls', 'ruff', 'pylsp', 'ltex'},
             handlers = {
                 function(server_name)
                     if server_name == 'ruff' then
@@ -98,11 +122,50 @@ return {
                                 }
                             }
                         })
-                    else
-                        require('lspconfig')[server_name].setup({
+                    elseif server_name == 'ltex' then
+                        require('lspconfig').ltex.setup({
+                            on_attach = function()
+                                require('ltex_extra').setup {
+                                    -- This is where your dictionary will be stored! Replace this path with
+                                    -- whatever you want!
+                                    path = vim.fn.expand '~' .. '/.config/nvim/ltex',
+                                  }
+                              -- ...
+                            end,
+                            settings = {
+                              ltex = {
+                                language = "en-GB",
+                                additionalRules = {
+                                    enablePickyRules = false,
+                                    motherTongue = "en-GB",
+                                },
+                                languageToolOptions = {
+                                    preferredVariants = {
+                                      ["en"] = "en-GB",  -- Prevents Oxford spelling prompts
+                                    }
+                                },
+                                disabledRules = {
+                                    ["en"] = {
+                                        "OXFORD_SPELLING_NOUNS",
+                                        "OXFORD_SPELLING_ADJECTIVES",
+                                        "OXFORD_SPELLING_VERBS",
+                                        "MORFOLOGIK_RULE_EN_GB"
+                                    },
+                                    ["en-GB"] = {
+                                        "OXFORD_SPELLING_NOUNS",
+                                        "OXFORD_SPELLING_ADJECTIVES",
+                                        "OXFORD_SPELLING_VERBS",
+                                        "MORFOLOGIK_RULE_EN_GB"
+                                    }
+                                },
+                              },
+
+                            },
+                            filetypes = { 'markdown', 'text', 'tex', 'gitcommit' },
+                            flags = { debounce_text_changes = 300 },
                         })
-                    end
-                end,
+                        end
+                    end,
             }
         })
         require('lspconfig').ocamllsp.setup({
